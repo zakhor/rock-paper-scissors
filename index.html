@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>じゃんけんマンに勝てるかな？</title>
+    <script src="https://ty-lab.net/shared/footer.js" defer></script>
     <style>
         * {
             margin: 0;
@@ -303,6 +304,20 @@
             border-style: inset;
         }
 
+        .modal-content { width: calc(100% - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
+        .modal-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        #shareStatus { font-size: 0.9em; margin: 12px 0 0; }
+        #shareText { width: 100%; min-height: 100px; margin-top: 10px; }
+
+        .site-footer {
+            padding: 20px 12px;
+            text-align: center;
+            font-size: 12px;
+            color: #444;
+        }
+
+        .site-footer a { color: inherit; }
+
         /* Hell Mode Styles - Color Inversion */
         body.hell-mode {
             filter: invert(1) hue-rotate(180deg);
@@ -335,6 +350,29 @@
             .ai-avatar {
                 margin: 0 auto;
             }
+        }
+        @media (max-width: 900px) {
+            body { padding: 8px; }
+            .container { padding: 10px; }
+            h1 { font-size: clamp(18px, 4.5vw, 26px); padding-bottom: 6px; }
+            #gameSubtitle { font-size: 13px; margin-bottom: 0 !important; }
+            .game-area { margin-top: 8px; gap: 12px; }
+            .left-panel { gap: 8px; min-width: 0; }
+            .avatar-score-row { flex-direction: row; gap: 8px; }
+            .ai-avatar { width: 72px; height: 90px; font-size: 48px; margin: 0; align-self: center; }
+            .score-board { padding: 6px; min-width: 0; }
+            .score-board h2 { font-size: 14px; padding: 3px; margin-bottom: 5px; }
+            .scores { font-size: 13px; gap: 4px; }
+            .score-label { font-size: 11px; }
+            .score-value { font-size: 22px; }
+            .buttons-section { padding: 8px; }
+            .buttons-section h3 { font-size: 14px; margin-bottom: 6px; padding: 3px; }
+            .buttons { gap: 6px; }
+            .hand-button { min-width: 0; min-height: 44px; padding: 6px 2px; font-size: 22px; line-height: 1.2; touch-action: manipulation; }
+            .history-section { padding: 8px; }
+            th, td { padding: 6px 3px; font-size: 12px; }
+            .modal-content { padding: 20px 14px; }
+            .modal-content h2 { font-size: 24px; }
         }
     </style>
 </head>
@@ -440,12 +478,21 @@
         </div>
     </div>
 
+    <footer class="site-footer">
+        <p data-copyright data-start="2025">© 2025-2026 T.Y. <a href="mailto:admin@ty-lab.net">admin@ty-lab.net</a></p>
+    </footer>
+
     <!-- Game End Modal -->
     <div class="modal" id="gameEndModal">
         <div class="modal-content">
             <h2 id="modalTitle">ゲーム終了</h2>
             <p id="modalMessage"></p>
-            <button class="reset-button" onclick="resetGame()">もう一度プレイ</button>
+            <div class="modal-actions">
+                <button class="reset-button" id="shareButton" onclick="shareResult()">結果をシェア</button>
+                <button class="reset-button" onclick="resetGame()">もう一度プレイ</button>
+            </div>
+            <p id="shareStatus" role="status" aria-live="polite"></p>
+            <textarea id="shareText" aria-label="共有する結果（コピー用）" readonly hidden></textarea>
         </div>
     </div>
 
@@ -508,6 +555,7 @@
 
         // Main game logic
         function playRound(userHand) {
+            if (gameState.aiWins >= AI_WIN_THRESHOLD || gameState.userWins >= HELL_MODE_TARGET) return;
             gameState.round++;
 
             // Use pre-calculated AI hand
@@ -919,10 +967,91 @@
                 message.textContent = `残念！じゃんけんマンが勝ちました。${gameState.userWins}勝 ${gameState.aiWins}敗 ${gameState.draws}引き分けでした。`;
             }
 
+            document.getElementById('shareStatus').textContent = '';
+            document.getElementById('shareText').hidden = true;
+            prepareResultShare();
             modal.classList.add('active');
         }
 
+        let resultShare = null;
+
+        function prepareResultShare() {
+            const title = 'じゃんけんマンに勝てるかな？';
+            const outcome = document.getElementById('modalTitle').textContent;
+            const score = `${gameState.userWins}勝 ${gameState.aiWins}敗 ${gameState.draws}引き分け`;
+            const url = /^https?:$/.test(location.protocol) ? location.href.split(/[?#]/)[0] : '';
+            const result = { title, text: `${title}\n${outcome}\n${score}`, url, file: null };
+            resultShare = result;
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = 1200;
+                canvas.height = 630;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#f0f0f0';
+                ctx.fillRect(0, 0, 1200, 630);
+                ctx.strokeStyle = '#808080';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(24, 24, 1152, 582);
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 48px sans-serif';
+                ctx.fillText(title, 600, 110);
+                ctx.font = '100px "Segoe UI Emoji", sans-serif';
+                ctx.fillText(document.getElementById('aiAvatar').textContent, 600, 265);
+                ctx.font = 'bold 48px sans-serif';
+                ctx.fillText(outcome, 600, 370);
+                ctx.fillStyle = '#0000aa';
+                ctx.font = 'bold 56px sans-serif';
+                ctx.fillText(score, 600, 480);
+                ctx.fillStyle = '#444';
+                ctx.font = '24px sans-serif';
+                ctx.fillText(url, 600, 560, 1080);
+                canvas.toBlob(blob => {
+                    if (blob && typeof File !== 'undefined') {
+                        result.file = new File([blob], 'janken-result.png', { type: 'image/png' });
+                    }
+                }, 'image/png');
+            } catch (error) {
+                // Text sharing remains available if image generation is unsupported.
+            }
+        }
+
+        async function shareResult() {
+            const result = resultShare;
+            if (!result) return;
+            const button = document.getElementById('shareButton');
+            const status = document.getElementById('shareStatus');
+            const text = [result.text, result.url].filter(Boolean).join('\n');
+            button.disabled = true;
+            status.textContent = '';
+            try {
+                if (navigator.share) {
+                    const data = { title: result.title, text: result.text };
+                    if (result.url) data.url = result.url;
+                    if (result.file && navigator.canShare && navigator.canShare({ files: [result.file] })) {
+                        data.files = [result.file];
+                    }
+                    await navigator.share(data);
+                } else {
+                    await navigator.clipboard.writeText(text);
+                    status.textContent = '結果をコピーしました。投稿先に貼り付けてください。';
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    const field = document.getElementById('shareText');
+                    field.value = text;
+                    field.hidden = false;
+                    field.focus();
+                    field.select();
+                    status.textContent = '結果のテキストをコピーして共有してください。';
+                }
+            } finally {
+                button.disabled = false;
+            }
+        }
+
         function resetGame() {
+            resultShare = null;
             gameState = {
                 round: 0,
                 aiWins: 0,
